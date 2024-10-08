@@ -1,3 +1,7 @@
+# 1.2.1
+
+- Updates proguard rules for R8
+
 # 1.2.0
 
 - First release of `wear_plus`. Replace any references to the `wear` plugin with `wear_plus` to switch.
@@ -11,10 +15,10 @@
 
 - Null Safety Migration (Finally!)
   - Thanks to Rexios and Peter Ullrich.
-  - Min Dart 2.12 / Flutter 2.5 
+  - Min Dart 2.12 / Flutter 2.5
 - Updated native component versions:
   - Gradle 6.5
-  - Android Gradle Plugin 4.1.0 
+  - Android Gradle Plugin 4.1.0
   - Android compileSdkVersion 31
   - AndroidX Wear 1.2.0
   - Kotlin 1.5.10

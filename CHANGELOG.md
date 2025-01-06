@@ -1,3 +1,7 @@
+# 1.2.2
+
+- Fixes build issue
+
 # 1.2.1
 
 - Updates proguard rules for R8

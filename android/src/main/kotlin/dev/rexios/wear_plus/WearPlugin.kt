@@ -2,8 +2,8 @@ package dev.rexios.wear_plus
 
 import android.os.Bundle
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.google.android.wearable.compat.WearableActivityController
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -15,7 +15,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
 
-class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleObserver {
+class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleEventObserver {
     private var mAmbientCallback = WearableAmbientCallback()
     private var mMethodChannel: MethodChannel? = null
     private var mActivityBinding: ActivityPluginBinding? = null
@@ -111,31 +111,6 @@ class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleObs
         }
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_CREATE)
-    fun onCreate() {
-        mAmbientController?.onCreate()
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    fun onResume() {
-        mAmbientController?.onResume()
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-    fun onPause() {
-        mAmbientController?.onPause()
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
-    fun onStop() {
-        mAmbientController?.onStop()
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-    fun onDestroy() {
-        mAmbientController?.onDestroy()
-    }
-
     inner class WearableAmbientCallback : WearableActivityController.AmbientCallback() {
         override fun onEnterAmbient(ambientDetails: Bundle) {
             val burnInProtection = ambientDetails.getBoolean(BURN_IN_PROTECTION, false)
@@ -156,6 +131,17 @@ class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleObs
 
         override fun onInvalidateAmbientOffload() {
             mMethodChannel?.invokeMethod("onInvalidateAmbientOffload", null)
+        }
+    }
+
+    override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+        when (event) {
+            Lifecycle.Event.ON_CREATE -> mAmbientController?.onCreate()
+            Lifecycle.Event.ON_RESUME -> mAmbientController?.onResume()
+            Lifecycle.Event.ON_PAUSE -> mAmbientController?.onPause()
+            Lifecycle.Event.ON_STOP -> mAmbientController?.onStop()
+            Lifecycle.Event.ON_DESTROY -> mAmbientController?.onDestroy()
+            else -> {}
         }
     }
 }

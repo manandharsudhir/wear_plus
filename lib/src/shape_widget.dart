@@ -44,22 +44,22 @@ class WatchShape extends StatefulWidget {
 }
 
 class _WatchShapeState extends State<WatchShape> {
-  late WearShape _shape;
+  // Default to round until the platform returns the shape
+  // round being the most common form factor for WearOS
+  var _shape = WearShape.round;
 
   @override
   void initState() {
     super.initState();
-    // Default to round until the platform returns the shape
-    // round being the most common form factor for WearOS
-    _shape = WearShape.round;
-    Wear.instance.getShape().then((shape) {
-      if (mounted) {
-        setState(
-          () =>
-              _shape = (shape == 'round' ? WearShape.round : WearShape.square),
-        );
-      }
-    });
+    _initState();
+  }
+
+  void _initState() async {
+    final shape = await Wear.instance.getShape();
+    if (!mounted) return;
+    setState(
+      () => _shape = (shape == 'round' ? WearShape.round : WearShape.square),
+    );
   }
 
   @override

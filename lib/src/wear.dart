@@ -4,7 +4,7 @@ import 'package:flutter/services.dart'
 
 /// Provides access to Wearable features
 class Wear {
-  static const MethodChannel _channel = MethodChannel('wear');
+  static const _channel = MethodChannel('wear');
 
   /// Get the [Wear] instance
   factory Wear() => instance;

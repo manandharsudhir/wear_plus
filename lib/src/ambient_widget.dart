@@ -65,7 +65,12 @@ class _AmbientModeState extends State<AmbientMode> with AmbientCallback {
   void initState() {
     super.initState();
     Wear.instance.registerAmbientCallback(this);
-    Wear.instance.isAmbient().then(_updateMode);
+    _initState();
+  }
+
+  void _initState() async {
+    final isAmbient = await Wear.instance.isAmbient();
+    _updateMode(isAmbient);
   }
 
   @override
@@ -88,11 +93,10 @@ class _AmbientModeState extends State<AmbientMode> with AmbientCallback {
   }
 
   void _updateMode(bool isAmbient) {
-    if (mounted) {
-      setState(
-        () => _ambientMode = isAmbient ? WearMode.ambient : WearMode.active,
-      );
-    }
+    if (!mounted) return;
+    setState(
+      () => _ambientMode = isAmbient ? WearMode.ambient : WearMode.active,
+    );
   }
 
   @override

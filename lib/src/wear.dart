@@ -68,6 +68,16 @@ class Wear {
     }
   }
 
+  Future<bool> getWearOs() async {
+    try {
+      return (await _channel.invokeMethod<String>('isWearOs'))!;
+    } on PlatformException catch (e, st) {
+      // Default to round
+      debugPrint('Error calling getShape: $e\n$st');
+      return false;
+    }
+  }
+
   /// Tells the application if we are currently in ambient mode
   Future<bool> isAmbient() async {
     try {

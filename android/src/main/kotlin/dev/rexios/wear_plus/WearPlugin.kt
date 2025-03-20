@@ -1,9 +1,12 @@
 package dev.rexios.wear_plus
 
+import android.app.Activity
+import android.app.UiModeManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.*
 import com.google.android.wearable.compat.WearableActivityController
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -11,30 +14,27 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.embedding.engine.plugins.lifecycle.HiddenLifecycleReference
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.MethodChannel.Result
 
-
-class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleEventObserver {
-    private var mAmbientCallback = WearableAmbientCallback()
-    private var mMethodChannel: MethodChannel? = null
-    private var mActivityBinding: ActivityPluginBinding? = null
-    private var mAmbientController: WearableActivityController? = null
+class WearPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler, LifecycleEventObserver {
+    private var ambientCallback = WearableAmbientCallback()
+    private var methodChannel: MethodChannel? = null
+    private var activityBinding: ActivityPluginBinding? = null
+    private var ambientController: WearableActivityController? = null
 
     companion object {
-        const val TAG = "WearPlugin"
-        const val BURN_IN_PROTECTION = WearableActivityController.EXTRA_BURN_IN_PROTECTION
-        const val LOW_BIT_AMBIENT = WearableActivityController.EXTRA_LOWBIT_AMBIENT
+        private const val CHANNEL_NAME = "wear"
+        private const val BURN_IN_PROTECTION = WearableActivityController.EXTRA_BURN_IN_PROTECTION
+        private const val LOW_BIT_AMBIENT = WearableActivityController.EXTRA_LOWBIT_AMBIENT
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        mMethodChannel = MethodChannel(binding.binaryMessenger, "wear")
-        mMethodChannel!!.setMethodCallHandler(this)
+        methodChannel = MethodChannel(binding.binaryMessenger, CHANNEL_NAME)
+        methodChannel?.setMethodCallHandler(this)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        mMethodChannel?.setMethodCallHandler(this)
-        mMethodChannel = null
+        methodChannel?.setMethodCallHandler(null)
+        methodChannel = null
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -54,59 +54,61 @@ class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleEve
     }
 
     private fun attachAmbientController(binding: ActivityPluginBinding) {
-        mActivityBinding = binding
-        mAmbientController = WearableActivityController(TAG, binding.activity, mAmbientCallback)
-        mAmbientController?.setAmbientEnabled()
-        val reference = (binding.lifecycle as HiddenLifecycleReference)
-        reference.lifecycle.addObserver(this)
+        activityBinding = binding
+        ambientController = WearableActivityController(CHANNEL_NAME, binding.activity, ambientCallback)
+        ambientController?.setAmbientEnabled()
+        (binding.lifecycle as? HiddenLifecycleReference)?.lifecycle?.addObserver(this)
     }
 
     private fun detachAmbientController() {
-        mActivityBinding?.let {
-            val reference = (it.lifecycle as HiddenLifecycleReference)
-            reference.lifecycle.removeObserver(this)
+        activityBinding?.let {
+            (it.lifecycle as? HiddenLifecycleReference)?.lifecycle?.removeObserver(this)
         }
-        mActivityBinding = null
-
+        activityBinding = null
+        ambientController = null
     }
 
-    override fun onMethodCall(call: MethodCall, result: Result) {
+    private fun isWearOS(activity: Activity): Boolean {
+        val packageManager = activity.packageManager
+        val uiModeManager = activity.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+
+        return packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) ||
+                uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_WATCH
+    }
+
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        val activity = activityBinding?.activity
+        if (activity == null) {
+            result.error("no-activity", "No android activity available.", null)
+            return
+        }
+
         when (call.method) {
             "getShape" -> {
-                val activity = mActivityBinding?.activity
-                when {
-                    activity == null -> {
-                        result.error("no-activity", "No android activity available.", null)
-                    }
-                    activity.resources.configuration.isScreenRound -> {
-                        result.success("round")
-                    }
-                    else -> {
-                        result.success("square")
-                    }
-                }
+                val shape = if (activity.resources.configuration.isScreenRound) "round" else "square"
+                result.success(shape)
             }
+
+            "isWearOs" -> {
+                result.success(isWearOS(activity))
+            }
+
             "isAmbient" -> {
-                result.success(mAmbientController?.isAmbient ?: false)
+                result.success(ambientController?.isAmbient ?: false)
             }
+
             "setAutoResumeEnabled" -> {
-                val enabled = call.argument<Boolean>("enabled")
-                if (mAmbientController == null || enabled == null) {
-                    result.error("not-ready", "Ambient mode controller not ready", null)
-                } else {
-                    mAmbientController!!.setAutoResumeEnabled(enabled)
-                    result.success(null)
-                }
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                ambientController?.setAutoResumeEnabled(enabled)
+                result.success(null)
             }
+
             "setAmbientOffloadEnabled" -> {
-                val enabled = call.argument<Boolean>("enabled")
-                if (mAmbientController == null || enabled == null) {
-                    result.error("not-ready", "Ambient mode controller not ready", null)
-                } else {
-                    mAmbientController!!.setAmbientOffloadEnabled(enabled)
-                    result.success(null)
-                }
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                ambientController?.setAmbientOffloadEnabled(enabled)
+                result.success(null)
             }
+
             else -> result.notImplemented()
         }
     }
@@ -115,32 +117,32 @@ class WearPlugin : FlutterPlugin, ActivityAware, MethodCallHandler, LifecycleEve
         override fun onEnterAmbient(ambientDetails: Bundle) {
             val burnInProtection = ambientDetails.getBoolean(BURN_IN_PROTECTION, false)
             val lowBitAmbient = ambientDetails.getBoolean(LOW_BIT_AMBIENT, false)
-            mMethodChannel?.invokeMethod("onEnterAmbient", mapOf(
-                    "burnInProtection" to burnInProtection,
-                    "lowBitAmbient" to lowBitAmbient
+            methodChannel?.invokeMethod("onEnterAmbient", mapOf(
+                "burnInProtection" to burnInProtection,
+                "lowBitAmbient" to lowBitAmbient
             ))
         }
 
         override fun onExitAmbient() {
-            mMethodChannel?.invokeMethod("onExitAmbient", null)
+            methodChannel?.invokeMethod("onExitAmbient", null)
         }
 
         override fun onUpdateAmbient() {
-            mMethodChannel?.invokeMethod("onUpdateAmbient", null)
+            methodChannel?.invokeMethod("onUpdateAmbient", null)
         }
 
         override fun onInvalidateAmbientOffload() {
-            mMethodChannel?.invokeMethod("onInvalidateAmbientOffload", null)
+            methodChannel?.invokeMethod("onInvalidateAmbientOffload", null)
         }
     }
 
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
         when (event) {
-            Lifecycle.Event.ON_CREATE -> mAmbientController?.onCreate()
-            Lifecycle.Event.ON_RESUME -> mAmbientController?.onResume()
-            Lifecycle.Event.ON_PAUSE -> mAmbientController?.onPause()
-            Lifecycle.Event.ON_STOP -> mAmbientController?.onStop()
-            Lifecycle.Event.ON_DESTROY -> mAmbientController?.onDestroy()
+            Lifecycle.Event.ON_CREATE -> ambientController?.onCreate()
+            Lifecycle.Event.ON_RESUME -> ambientController?.onResume()
+            Lifecycle.Event.ON_PAUSE -> ambientController?.onPause()
+            Lifecycle.Event.ON_STOP -> ambientController?.onStop()
+            Lifecycle.Event.ON_DESTROY -> ambientController?.onDestroy()
             else -> {}
         }
     }
